@@ -1,0 +1,745 @@
+﻿<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tool RF-CL">
+<meta name="theme-color" content="#FAF9F7">
+<script data-iphone="sentinella">
+(function(){
+var h=document.documentElement, msg="";
+function ha(c){ return (" "+h.className+" ").indexOf(" "+c+" ")>=0; }
+// L'errore puo' arrivare prima che l'avviso esista — uno script in <head> che
+// non si lascia leggere —: il messaggio si tiene da parte e si scrive quando
+// la pagina c'e'.
+function scrivi(){
+  var e=document.getElementById("nmerr");
+  if(e&&msg) e.textContent="Errore del motore: "+msg;
+}
+function ko(m){
+  if(m&&!msg) msg=m;
+  if(!ha("motore-ko")) h.className+=" motore-ko";
+  scrivi();
+}
+h.className+=" js";
+window.onerror=function(m,src,riga,col){
+  m=String(m);
+  if(/^Script error\.?$/.test(m)) m="il browser non ne mostra il dettaglio (\u00abScript error.\u00bb)";
+  ko(m+(riga?" (riga "+riga+(col?", colonna "+col:"")+")":""));
+};
+document.addEventListener("DOMContentLoaded",function(){
+  if(!ha("motore-ok")) ko(msg||"il motore non ha completato l'avvio"); else scrivi();
+});
+})();
+</script>
+<title>RF-CL — probabilità clinica di CAD ostruttiva</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --bg:#FAF9F7; --surface:#FFFFFF; --surface-alt:#F3F2EF;
+    --border:rgba(11,11,11,0.10); --border-strong:rgba(11,11,11,0.18);
+    --text-primary:#0B0B0B; --text-secondary:#52514E; --text-muted:#76746F;
+    --accent-blue:#2A78D6;   --accent-blue-bg:#E6F1FB;   --accent-blue-border:#B5D4F4;
+    --accent-amber:#BA7517;  --accent-amber-bg:#FAEEDA;  --accent-amber-border:#FAC775;
+    --accent-red:#A32D2D;    --accent-red-bg:#FCEBEB;    --accent-red-border:#F7C1C1;
+    --accent-green:#3B6D11;  --accent-green-bg:#EAF3DE;  --accent-green-border:#C0DD97;
+    --accent-purple:#534AB7; --accent-purple-bg:#EEEDFE; --accent-purple-border:#CECBF6;
+    --cor-1:#3B8E5A; --cor-2a:#E0A82E; --cor-2b:#DE7E3C; --cor-3:#B33A3A;
+    /* le cinque categorie della Fig. 6: il colore e' la categoria */
+    --k0:#2A78D6; --k0-bg:#E3EFFB; --k0-bd:#A9CBF1;
+    --k1:#2E7D4F; --k1-bg:#E2F3E8; --k1-bd:#A6D9B8;
+    --k2:#8A6A00; --k2-bg:#FBF3C8; --k2-bd:#EBD56C;
+    --k3:#B45309; --k3-bg:#FDEBD8; --k3-bd:#F4BD85;
+    --k4:#A32D2D; --k4-bg:#FCE3E3; --k4-bd:#F0A9A9;
+    --grid:rgba(42,120,214,.08);
+    --font:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --display:'IBM Plex Sans Condensed','Arial Narrow',-apple-system,'Segoe UI',sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,Consolas,'Courier New',monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#111418; --surface:#181C22; --surface-alt:#20252D;
+      --border:rgba(255,255,255,.10); --border-strong:rgba(255,255,255,.19);
+      --text-primary:#E7EAEE; --text-secondary:#B8BEC7; --text-muted:#949BA5;
+      --accent-blue:#72AAEE;   --accent-blue-bg:#18283A;   --accent-blue-border:#2E4B6C;
+      --accent-amber:#E3A94F;  --accent-amber-bg:#30250F;  --accent-amber-border:#5D4719;
+      --accent-red:#EF8E8E;    --accent-red-bg:#361B1B;    --accent-red-border:#6B3232;
+      --accent-green:#95C873;  --accent-green-bg:#1C2A13;  --accent-green-border:#3C5626;
+      --accent-purple:#ADA6F2; --accent-purple-bg:#23213B; --accent-purple-border:#454077;
+      --k0:#8EC0F5; --k0-bg:#16283C; --k0-bd:#2F5378;
+      --k1:#8FD3A8; --k1-bg:#132B1D; --k1-bd:#2D5A3E;
+      --k2:#EDD36A; --k2-bg:#2C260C; --k2-bd:#5E5120;
+      --k3:#F3B27A; --k3-bg:#33210F; --k3-bd:#6B4524;
+      --k4:#F29A9A; --k4-bg:#361B1B; --k4-bd:#6B3232;
+      --grid:rgba(114,170,238,.07);
+      color-scheme:dark;
+    }
+  }
+  body { font-family:var(--font); background:var(--bg); color:var(--text-primary); font-size:14.5px; line-height:1.65; -webkit-font-smoothing:antialiased; }
+  .page { max-width:920px; margin:0 auto; padding:0 16px 4rem; }
+  strong, b { font-weight:600; }
+  .muted { color:var(--text-muted); }
+
+  /* intestazione */
+  .hero { margin:0 -16px 0; padding:2.2rem 16px 1.3rem; border-bottom:1px solid var(--border);
+          background-color:var(--bg);
+          background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+          background-size:22px 22px; }
+  .kicker { font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-blue); margin-bottom:8px; }
+  .headline { font-family:var(--display); font-size:30px; font-weight:700; line-height:1.12; margin-bottom:10px; }
+  .lede { font-size:14.5px; color:var(--text-secondary); max-width:720px; margin-bottom:12px; }
+  .lede strong { color:var(--text-primary); }
+  .meta-row { display:flex; flex-wrap:wrap; gap:6px 8px; font-size:12px; }
+  .meta-chip { background:var(--surface); border:1px solid var(--border-strong); border-radius:99px; padding:2px 10px; color:var(--text-secondary); overflow-wrap:anywhere; }
+  .meta-chip strong { color:var(--text-primary); }
+
+  /* barra dell'esito, sempre in vista */
+  .bar { position:-webkit-sticky; position:-webkit-sticky;position:sticky; top:0; z-index:30; background:var(--bg); border-bottom:1px solid var(--border-strong);
+         margin:0 -16px 1.2rem; padding:8px 16px; display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
+  .bar .lbl { font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--text-muted); }
+  .bar .sp { flex:1 1 auto; }
+  .btn { font:600 12.5px var(--font); padding:6px 13px; border-radius:99px; border:1px solid var(--border-strong); background:var(--surface); color:var(--text-secondary); cursor:pointer; }
+  .btn:hover { border-color:var(--accent-blue); color:var(--accent-blue); }
+
+  /* passi */
+  .stage { display:flex; align-items:baseline; gap:10px; margin:2rem 0 .7rem; padding-bottom:6px; border-bottom:2px solid var(--border-strong); }
+  .stage-n { font-family:var(--mono); font-size:12px; font-weight:600; color:#FFFFFF; background:var(--accent-blue); border-radius:6px; padding:1px 7px; }
+  .stage-t { font-family:var(--display); font-size:20px; font-weight:700; line-height:1.2; }
+  .stage-w { margin-left:auto; font-size:11.5px; color:var(--text-muted); text-align:right; }
+  .card { background:var(--surface); border:1px solid var(--border-strong); border-radius:12px; padding:14px 16px; margin-bottom:12px; }
+  .card h3 { font-size:13px; font-weight:600; letter-spacing:.02em; margin-bottom:8px; color:var(--text-secondary); }
+  .row { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; margin-bottom:10px; }
+  .row:last-child { margin-bottom:0; }
+  .fl { font-size:12.5px; font-weight:600; color:var(--text-secondary); min-width:118px; }
+  input[type=number], select { font:500 15px var(--font); color:var(--text-primary); background:var(--surface); border:1px solid var(--border-strong); border-radius:8px; padding:6px 9px; }
+  input[type=number] { width:96px; text-align:center; }
+  select { max-width:100%; }
+  .seg { display:inline-flex; flex-wrap:wrap; border:1px solid var(--border-strong); border-radius:10px; overflow:hidden; }
+  .seg label { position:relative; cursor:pointer; }
+  .seg input { position:absolute; opacity:0; width:1px; height:1px; }
+  .seg span { display:block; padding:6px 13px; font-size:13.5px; font-weight:500; color:var(--text-secondary); border-right:1px solid var(--border); }
+  .seg label:last-child span { border-right:none; }
+  .seg input:checked + span { background:var(--text-primary); color:var(--bg); }
+  .seg input:focus-visible + span { outline:2px solid var(--accent-blue); outline-offset:-2px; }
+  .chk { display:flex; align-items:flex-start; gap:9px; padding:6px 0; font-size:14px; line-height:1.45; border-bottom:1px dashed var(--border); cursor:pointer; }
+  .chk:last-child { border-bottom:none; }
+  .chk input { margin-top:3px; width:17px; height:17px; flex:0 0 auto; accent-color:var(--accent-blue); }
+  .chk small { display:block; color:var(--text-muted); font-size:12px; }
+  .pt { margin-left:auto; font-family:var(--mono); font-size:12px; color:var(--text-muted); white-space:nowrap; padding-left:8px; }
+  .hide { display:none !important; }
+
+  /* esiti */
+  .esito { display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; }
+  .big { font-family:var(--display); font-size:44px; font-weight:700; line-height:1; }
+  .big small { font-size:22px; }
+  .cat { display:inline-block; font-size:13px; font-weight:600; border-radius:99px; padding:3px 11px; border:1px solid; }
+  .k0 { color:var(--k0); background:var(--k0-bg); border-color:var(--k0-bd); }
+  .k1 { color:var(--k1); background:var(--k1-bg); border-color:var(--k1-bd); }
+  .k2 { color:var(--k2); background:var(--k2-bg); border-color:var(--k2-bd); }
+  .k3 { color:var(--k3); background:var(--k3-bg); border-color:var(--k3-bd); }
+  .k4 { color:var(--k4); background:var(--k4-bg); border-color:var(--k4-bd); }
+  .kx { color:var(--text-muted); background:var(--surface-alt); border-color:var(--border-strong); }
+  .src { font-family:var(--mono); font-size:11px; color:var(--text-muted); margin-top:8px; }
+  .why { font-size:13px; color:var(--text-secondary); }
+  .nota { border-left:3px solid var(--accent-amber); background:var(--accent-amber-bg); border-radius:0 8px 8px 0; padding:8px 12px; margin-top:10px; font-size:13.5px; }
+  .nota.info { border-left-color:var(--accent-blue); background:var(--accent-blue-bg); }
+  .nota.stop { border-left-color:var(--accent-red); background:var(--accent-red-bg); }
+  .nota strong { color:var(--text-primary); }
+
+  /* griglia RF-CL */
+  .gr-wrap { overflow-x:auto; margin-top:10px; }
+  table.gr { border-collapse:separate; border-spacing:4px; font-size:13px; }
+  table.gr th { font-weight:600; font-size:11.5px; color:var(--text-muted); padding:0 6px; text-align:center; white-space:nowrap; }
+  table.gr th.eta { text-align:left; }
+  table.gr td { min-width:40px; text-align:center; border-radius:99px; padding:3px 0; font-family:var(--mono); font-weight:600; border:1px solid; }
+  table.gr td.qui { outline:3px solid var(--text-primary); outline-offset:1px; }
+
+  /* cascata */
+  .passo { display:flex; gap:10px; padding:9px 0; border-bottom:1px dashed var(--border); }
+  .passo:last-child { border-bottom:none; }
+  .passo .ico { flex:0 0 22px; font-weight:700; color:var(--accent-blue); text-align:center; }
+  .passo .tx { flex:1 1 auto; font-size:14px; }
+  .cor { display:inline-block; font-family:var(--mono); font-size:11px; font-weight:600; color:#FFFFFF; border-radius:4px; padding:0 5px; margin:0 2px; white-space:nowrap; vertical-align:1px; }
+  .c1 { background:var(--cor-1); } .c2a { background:var(--cor-2a); color:#1D1602; } .c2b { background:var(--cor-2b); } .c3 { background:var(--cor-3); }
+  .pg { font-family:var(--mono); font-size:11px; color:var(--text-muted); white-space:nowrap; }
+  .due { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .due ul { padding-left:18px; font-size:13.5px; }
+  .due li { margin:2px 0; }
+  @media (max-width:640px) {
+    .due { grid-template-columns:1fr; }
+    .headline { font-size:25px; }
+    .stage-w { display:none; }
+    .fl { min-width:0; width:100%; }
+  }
+  .limiti li { margin:4px 0 4px 18px; font-size:13.5px; }
+  .foot { margin-top:2.4rem; padding-top:1rem; border-top:1px solid var(--border-strong); font-size:12px; color:var(--text-muted); line-height:1.7; }
+  .foot strong { color:var(--text-secondary); }
+  @media print { .bar { position:static; } }
+</style>
+<style data-iphone="stile">
+/* L'avviso e' visibile per costruzione: lo nasconde solo la classe che la
+   sentinella mette quando JavaScript esiste, e lo rimostra quando il motore
+   muore. Nell'anteprima dell'iPhone nessuna delle due arriva. */
+#nomotore{background:#FCEBEB;border:1.5px solid #A32D2D;border-radius:10px;
+ padding:12px 15px;margin:0 0 1.1rem;font-size:13.5px;line-height:1.6;color:#0B0B0B;
+ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif}
+#nomotore strong{display:block;color:#A32D2D;font-size:15px;margin-bottom:4px}
+#nomotore p{margin:6px 0 0}
+#nomotore a{color:#A32D2D}
+#nomotore .nmurl{font-family:'SFMono-Regular',Consolas,Menlo,monospace;font-size:.92em;word-break:break-all}
+#nomotore .nmerr{display:block;font-family:'SFMono-Regular',Consolas,Menlo,monospace;
+ font-size:11.5px;color:#A32D2D;margin-top:6px;word-break:break-word}
+#nomotore .nmerr:empty{display:none}
+html.js #nomotore{display:none}
+html.js.motore-ko #nomotore{display:block}
+
+#nmprivacy{background:#E2F4F5;border:1px solid #A7DBDE;border-radius:8px;padding:9px 13px;
+ margin:0 0 1rem;font-size:12.5px;line-height:1.55;color:#0B0B0B;
+ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif}
+@media print{#nmprivacy{display:none}}
+</style>
+</head>
+<body>
+<div class="nomotore" id="nomotore" role="alert">
+ <strong>Motore di calcolo non attivo</strong>
+ <p>I calcoli, i filtri e i comandi di questa pagina <b>non funzionano</b>: dove leggi «—» non c'è un
+ valore. Il testo resta leggibile, i numeri che dipendono dai tuoi dati no. Non usare questa pagina
+ per decidere una dose.</p>
+ <p>Su iPhone e iPad succede sempre con un file salvato sul telefono: si apre nell'<b>anteprima</b> —
+ dall'app File, da Mail, da WhatsApp —, che mostra la pagina ma non esegue il motore, e Apple non
+ permette di aprirlo in Safari. Sull'iPhone il tool funziona aperto da questo indirizzo, in Safari: <a class="nmurl" href="https://francescofugetto-ai.github.io/tool-rfcl-web/">https://francescofugetto-ai.github.io/tool-rfcl-web/</a> — poi Condividi, «Aggiungi alla schermata Home». Dopo la prima apertura funziona anche senza rete. Su computer e Android basta aprire il file.</p>
+ <span class="nmerr" id="nmerr"></span>
+</div>
+<div class="nmprivacy" id="nmprivacy">
+ <b>Quello che scrivi resta su questo dispositivo.</b> La pagina non invia niente in rete e non
+ salva niente: nessun dato esce da qui. Per la stessa ragione, <b>chiudendola il contenuto si
+ perde</b> — copia il referto dove ti serve prima di chiudere.
+</div>
+<div class="page">
+
+<header class="hero">
+  <div class="kicker">Strumento · Sindrome coronarica cronica · ESC 2024</div>
+  <h1 class="headline">Probabilità clinica di CAD ostruttiva — RF-CL, calcio coronarico e primo test</h1>
+  <p class="lede"><strong>Come si usa.</strong> Compila il passo 1: la probabilità <strong>RF-CL</strong> esce dalla tabella della linea guida, cella per cella. Il passo 2 la <strong>aggiusta</strong> con i reperti clinici, il passo 3 la <strong>riclassifica</strong> col calcium score. Il passo 4 dice <strong>quale test</strong> per la categoria finale, il passo 5 <strong>che cosa fare dopo</strong> il test. <strong>Azzera</strong>, in alto, ricomincia da capo.</p>
+  <div class="meta-row">
+    <span class="meta-chip"><strong>Fonte</strong> 2024 ESC Guidelines for the management of chronic coronary syndromes · Eur Heart J 2024;45:3415–3537</span>
+    <span class="meta-chip"><strong>Da</strong> Fig. 4–7 · Tabelle di raccomandazioni 3, 5, 8–14</span>
+  </div>
+</header>
+
+<div class="bar" id="bar" aria-live="polite">
+  <span class="lbl">RF-CL</span> <span id="barRf" class="cat kx">—</span>
+  <span class="lbl">finale</span> <span id="barFin" class="cat kx">—</span>
+  <span class="sp"></span>
+  <button class="btn" id="azzera" type="button">Azzera</button>
+</div>
+
+<!-- ═══ PASSO 1 ═══ -->
+<div class="stage"><span class="stage-n">1</span><span class="stage-t">Il paziente e la probabilità RF-CL</span><span class="stage-w">Fig. 4 · p. 3439 · <span class="cor c1">I B</span></span></div>
+
+<div class="card">
+  <div class="row">
+    <span class="fl">Sesso</span>
+    <span class="seg">
+      <label><input type="radio" name="sesso" value="f"><span>Donna</span></label>
+      <label><input type="radio" name="sesso" value="m"><span>Uomo</span></label>
+    </span>
+  </div>
+  <div class="row">
+    <label class="fl" for="eta">Età (anni)</label>
+    <input type="number" id="eta" min="18" max="110" step="1" inputmode="numeric" placeholder="30–80">
+    <span class="muted" id="etaNota" style="font-size:12.5px"></span>
+  </div>
+  <div class="row">
+    <span class="fl">Sintomo principale</span>
+    <span class="seg">
+      <label><input type="radio" name="sintomo" value="dolore"><span>Dolore toracico</span></label>
+      <label><input type="radio" name="sintomo" value="dispnea"><span>Dispnea</span></label>
+    </span>
+  </div>
+</div>
+
+<div class="card hide" id="cDolore">
+  <h3>Caratteristiche del dolore — un punto ciascuna</h3>
+  <label class="chk"><input type="checkbox" id="d1"><span>Fastidio costrittivo retrosternale, o al collo, alla mandibola, alla spalla o al braccio</span><span class="pt">1</span></label>
+  <label class="chk"><input type="checkbox" id="d2"><span>Scatenato da stress fisico o emotivo</span><span class="pt">1</span></label>
+  <label class="chk"><input type="checkbox" id="d3"><span>Si attenua con il riposo o con i nitrati entro 5 minuti</span><span class="pt">1</span></label>
+</div>
+<div class="card hide" id="cDispnea">
+  <h3>Dispnea</h3>
+  <p class="why">Fiato corto o difficoltà a prendere fiato, aggravati dallo sforzo fisico: <strong>2 punti fissi</strong>. Dolore e dispnea non si sommano: conta il sintomo principale.</p>
+</div>
+
+<div class="card">
+  <h3>Fattori di rischio — quanti ne ha (0–5)</h3>
+  <label class="chk"><input type="checkbox" class="fr" id="fr1"><span>Familiarità<small>almeno un parente di primo grado con segni precoci di CAD: uomo &lt;55 anni, donna &lt;65 anni</small></span></label>
+  <label class="chk"><input type="checkbox" class="fr" id="fr2"><span>Fumo<small>attuale o pregresso</small></span></label>
+  <label class="chk"><input type="checkbox" class="fr" id="fr3"><span>Dislipidemia<small>presente alla diagnosi</small></span></label>
+  <label class="chk"><input type="checkbox" class="fr" id="fr4"><span>Ipertensione<small>presente alla diagnosi</small></span></label>
+  <label class="chk"><input type="checkbox" class="fr" id="fr5"><span>Diabete<small>presente alla diagnosi</small></span></label>
+</div>
+
+<div class="card" id="outRf">
+  <div class="esito">
+    <div class="big" id="rfVal">—</div>
+    <div><span class="cat kx" id="rfCat">compila sesso, età e sintomo</span><div class="why" id="rfWhy" style="margin-top:4px"></div></div>
+  </div>
+  <div class="gr-wrap" id="rfGriglia"></div>
+  <div class="src">ESC 2024 · Fig. 4, p. 3439 (valori in %, dati di Winther et al.) · stimare con RF-CL: <span class="cor c1">I B</span> p. 3438</div>
+</div>
+
+<!-- ═══ PASSO 2 ═══ -->
+<div class="stage"><span class="stage-n">2</span><span class="stage-t">Aggiustare con i reperti clinici</span><span class="stage-w">Fig. 5, pannello 2 · p. 3448 · <span class="cor c1">I C</span></span></div>
+
+<div class="card">
+  <h3>Reperti anomali che alzano la probabilità</h3>
+  <label class="chk"><input type="checkbox" class="agg" id="a1"><span>Alterazioni dell'ECG a riposo<small>onde Q o alterazioni ST-T</small></span></label>
+  <label class="chk"><input type="checkbox" class="agg" id="a2"><span>Disfunzione ventricolare sinistra<small>severa o segmentaria</small></span></label>
+  <label class="chk"><input type="checkbox" class="agg" id="a3"><span>Aritmia ventricolare</span></label>
+  <label class="chk"><input type="checkbox" class="agg" id="a4"><span>Arteriopatia periferica</span></label>
+  <label class="chk"><input type="checkbox" class="agg" id="a5"><span>Calcificazioni coronariche su una TC del torace già eseguita</span></label>
+  <h3 style="margin-top:12px">Fattori o comorbidità severi che il modello non pesa</h3>
+  <label class="chk"><input type="checkbox" class="agg" id="a6"><span>Ipercolesterolemia familiare</span></label>
+  <label class="chk"><input type="checkbox" class="agg" id="a7"><span>Disfunzione renale severa</span></label>
+  <label class="chk"><input type="checkbox" class="agg" id="a8"><span>Malattia reumatica o infiammatoria</span></label>
+  <div class="src">Reperti: Fig. 5, p. 3448 · comorbidità non riflesse nel modello: p. 3438</div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <span class="fl">ECG da sforzo</span>
+    <span class="seg">
+      <label><input type="radio" name="ecg" value="" checked><span>Non eseguito</span></label>
+      <label><input type="radio" name="ecg" value="neg"><span>Negativo</span></label>
+      <label><input type="radio" name="ecg" value="pos"><span>Anomalo</span></label>
+    </span>
+  </div>
+  <div class="row">
+    <label class="fl" for="catMan">Categoria dopo l'aggiustamento</label>
+    <select id="catMan">
+      <option value="">— la calcola lo strumento —</option>
+      <option value="0">molto bassa ≤5%</option>
+      <option value="1">bassa &gt;5–15%</option>
+      <option value="2">moderata &gt;15–50%</option>
+      <option value="3">alta &gt;50–85%</option>
+      <option value="4">molto alta &gt;85%</option>
+    </select>
+  </div>
+  <div id="aggNote"></div>
+</div>
+
+<!-- ═══ PASSO 3 ═══ -->
+<div class="stage"><span class="stage-n">3</span><span class="stage-t">Riclassificare col calcium score</span><span class="stage-w">Fig. 5, pannello 3 · p. 3448 · <span class="cor c2a">IIa B</span></span></div>
+
+<div class="card">
+  <div class="row">
+    <label class="fl" for="cacs">CACS (Agatston)</label>
+    <input type="number" id="cacs" min="0" step="1" inputmode="numeric" placeholder="vuoto = non noto">
+    <span class="muted" id="cacsCl" style="font-size:12.5px"></span>
+  </div>
+  <div class="esito" style="margin-top:6px">
+    <div class="big" id="ccVal">—</div>
+    <div><span class="cat kx" id="ccCat">nessun CACS</span><div class="why" id="ccWhy" style="margin-top:4px"></div></div>
+  </div>
+  <div id="ccNote"></div>
+  <div class="src">ESC 2024 · Fig. 5, pannello 3, p. 3448 — CACS-CL letto sulle curve della figura · riclassificare la RF-CL bassa col CACS: <span class="cor c2a">IIa B</span> p. 3438</div>
+</div>
+
+<!-- ═══ PASSO 4 ═══ -->
+<div class="stage"><span class="stage-n">4</span><span class="stage-t">Il test di primo livello</span><span class="stage-w">Fig. 6 · p. 3449 · Fig. 7 · p. 3450</span></div>
+
+<div class="card">
+  <h3>Segni che portano direttamente all'invasivo</h3>
+  <label class="chk"><input type="checkbox" id="r1"><span>Sintomi de novo molto suggestivi che compaiono a basso carico</span></label>
+  <label class="chk"><input type="checkbox" id="r2"><span>Sintomi severi refrattari alla terapia medica</span></label>
+  <label class="chk"><input type="checkbox" id="r3"><span>Reperti di prognosi sfavorevole<small>disfunzione VS severa, aritmia ventricolare, ipotensione da sforzo</small></span></label>
+</div>
+
+<div class="card" id="outTest">
+  <div class="esito"><span class="cat kx" id="finCat">categoria finale —</span><span class="why" id="finDa"></span></div>
+  <div id="testPassi" style="margin-top:8px"></div>
+</div>
+
+<div class="card due" id="prefer">
+  <div>
+    <h3>CCTA preferibile se</h3>
+    <ul>
+      <li>probabilità bassa o moderata</li>
+      <li>serve sapere se c'è CAD, anche non ostruttiva</li>
+      <li>le caratteristiche del paziente promettono immagini di buona qualità</li>
+    </ul>
+    <p class="why" style="margin-top:8px"><span class="cor c3">III C</span> non raccomandata con eGFR &lt;30 mL/min/1,73 m², scompenso non compensato, calcificazioni coronariche estese, frequenza rapida e irregolare, obesità severa, apnea non collaborante. <span class="pg">p. 3442</span></p>
+  </div>
+  <div>
+    <h3>Imaging funzionale preferibile se</h3>
+    <ul>
+      <li>probabilità moderata o alta</li>
+      <li>serve sapere di ischemia, vitalità o malattia microvascolare</li>
+    </ul>
+    <p class="why" style="margin-top:8px">Eco-stress, SPECT o, preferibilmente, PET, CMR da stress. La scelta tiene conto di disponibilità ed esperienza locali. <span class="pg">pp. 3443–3445, 3450</span></p>
+  </div>
+</div>
+
+<!-- ═══ PASSO 5 ═══ -->
+<div class="stage"><span class="stage-n">5</span><span class="stage-t">Dopo il test</span><span class="stage-w">Fig. 7 · p. 3450 · pp. 3453–3454</span></div>
+
+<div class="card">
+  <div class="row">
+    <label class="fl" for="test">Test eseguito</label>
+    <select id="test">
+      <option value="">—</option>
+      <option value="ccta">CCTA</option>
+      <option value="funz">Imaging funzionale</option>
+      <option value="ica">Coronarografia (ICA)</option>
+    </select>
+  </div>
+  <div class="row hide" id="rigaEsito">
+    <label class="fl" for="esito">Esito</label>
+    <select id="esito"></select>
+  </div>
+  <div id="dopoPassi"></div>
+</div>
+
+<!-- ═══ LIMITI ═══ -->
+<div class="stage"><span class="stage-n">!</span><span class="stage-t">Limiti del modello per questo paziente</span></div>
+<div class="card"><ul class="limiti" id="limiti"></ul></div>
+
+<div class="foot">
+  <strong>Fonte.</strong> Vrints C, Andreotti F, Koskinas KC, Rossello X, et al. <em>2024 ESC Guidelines for the management of chronic coronary syndromes.</em> Eur Heart J 2024;45:3415–3537. Tabella RF-CL trascritta dalla Fig. 4 (p. 3439) e verificata cella per cella; curve CACS-CL lette sul tracciato vettoriale della Fig. 5 (p. 3448), con la scala dell'asse della figura; cascata dalle Fig. 6–7 (pp. 3449–3450) e dalle tabelle di raccomandazioni 3, 5, 8–14. Testo riformulato, nessun passo della fonte riprodotto.<br>
+  <strong>Strumento di studio e di consultazione.</strong> Non è un dispositivo medico validato e non sostituisce il giudizio clinico né la lettura della linea guida.
+</div>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ═══ DATI ═══════════════════════════════════════════════════════════════
+     RF-CL — ESC 2024, Fig. 4, p. 3439. Per sesso e punteggio dei sintomi:
+     righe = eta' 30–39, 40–49, 50–59, 60–69, 70–80;
+     colonne = fattori di rischio 0–1, 2–3, 4–5. Valori in %. */
+  var RFCL = {
+    f: { s01: [[0,1,2],[1,1,3],[1,2,5],[2,4,7],[4,7,11]],
+         s2:  [[0,1,3],[1,2,5],[2,3,7],[3,6,11],[6,10,16]],
+         s3:  [[2,5,10],[4,7,12],[6,10,15],[10,14,19],[16,19,23]] },
+    m: { s01: [[1,2,5],[2,4,8],[4,7,12],[8,12,17],[15,19,24]],
+         s2:  [[2,4,8],[3,6,12],[6,11,17],[12,17,25],[22,27,34]],
+         s3:  [[9,14,22],[14,20,27],[21,27,33],[32,35,39],[44,44,45]] }
+  };
+  var ETA = ["30–39","40–49","50–59","60–69","70–80"];
+  var NFR = ["0–1","2–3","4–5"];
+
+  /* CACS-CL — ESC 2024, Fig. 5, pannello 3, p. 3448. Ogni curva e' una
+     Bezier cubica nel PDF; qui e' campionata per RF-CL intera 0–45 (il
+     massimo della tabella) e riportata in % con la scala dell'asse della
+     figura (tacche 0, 1, 5, 10, 15, 20, 30, 50, 70, 85, 100), interpolata
+     linearmente fra una tacca e l'altra. E' una LETTURA del grafico. */
+  var CACSCL = {
+    "0":       [0.3,0.4,0.6,0.8,0.9,1.2,1.6,1.9,2.2,2.4,2.7,2.9,3.1,3.3,3.5,3.7,3.9,4.0,4.2,4.3,4.5,4.6,4.8,4.9,5.1,5.4,5.6,5.8,6.1,6.3,6.5,6.8,7.0,7.2,7.4,7.6,7.8,8.0,8.2,8.3,8.5,8.7,8.9,9.0,9.2,9.3],
+    "1-9":     [1.2,1.7,2.2,2.6,2.9,3.3,3.6,3.9,4.1,4.4,4.6,4.8,5.0,5.4,5.8,6.2,6.5,6.9,7.2,7.5,7.8,8.1,8.4,8.7,9.0,9.2,9.5,9.7,10.0,10.3,10.7,11.1,11.5,11.9,12.2,12.6,12.9,13.3,13.6,13.9,14.2,14.5,14.8,15.1,15.5,15.8],
+    "10-99":   [3.2,3.6,4.1,4.5,4.8,5.2,5.8,6.4,6.9,7.4,7.8,8.3,8.7,9.1,9.4,9.8,10.3,10.8,11.4,11.9,12.5,13.0,13.5,14.0,14.4,14.9,15.4,15.8,16.3,16.8,17.2,17.7,18.1,18.5,18.9,19.3,19.7,20.2,20.8,21.4,22.0,22.5,23.1,23.6,24.2,24.7],
+    "100-399": [11.7,12.3,13.0,13.6,14.2,14.8,15.3,15.9,16.5,17.0,17.5,18.0,18.4,18.9,19.3,19.8,20.3,21.0,21.6,22.2,22.9,23.5,24.1,24.6,25.2,25.8,26.3,26.8,27.4,27.9,28.4,28.9,29.4,29.9,30.6,31.5,32.4,33.2,34.0,34.9,35.7,36.5,37.2,38.0,38.8,39.5],
+    "400-999": [22.7,23.3,24.1,24.9,25.6,26.3,26.9,27.5,28.1,28.7,29.2,29.7,30.4,31.3,32.2,33.1,33.9,34.8,35.6,36.4,37.2,37.9,38.7,39.4,40.2,40.9,41.6,42.3,43.0,43.7,44.4,45.1,45.7,46.4,47.1,47.7,48.3,49.0,49.6,50.3,51.2,52.2,53.1,54.0,54.9,55.8],
+    ">=1000":  [41.4,41.6,42.5,43.4,44.2,45.0,45.8,46.6,47.3,48.0,48.6,49.3,49.9,50.8,51.8,52.7,53.6,54.4,55.3,56.2,57.0,57.8,58.6,59.4,60.2,61.0,61.8,62.6,63.3,64.1,64.8,65.6,66.3,67.0,67.8,68.5,69.2,69.9,70.4,70.9,71.3,71.8,72.3,72.7,73.2,73.7]
+  };
+  /* A ±1,5 punti tipografici dalla linea di soglia la lettura non basta a
+     decidere la categoria: e' lo spessore del tratto piu' la precisione
+     del disegno, tradotto in % con la stessa scala. */
+  var CONFINE = [[4.7,5.6],[13.9,16.3],[46.1,55.9],[81.0,88.8]];
+
+  var CAT = ["molto bassa","bassa","moderata","alta","molto alta"];
+  var RANGE = ["≤5%",">5–15%",">15–50%",">50–85%",">85%"];
+
+  /* ═══ FUNZIONI PURE ══════════════════════════════════════════════════ */
+  function categoria(v) {
+    if (v === null || v === undefined || !isFinite(v)) return null;
+    if (v <= 5) return 0;
+    if (v <= 15) return 1;
+    if (v <= 50) return 2;
+    if (v <= 85) return 3;
+    return 4;
+  }
+  function fasciaEta(eta) {
+    if (eta === null || !isFinite(eta)) return null;
+    if (eta < 30 || eta > 80) return -1;
+    return Math.min(4, Math.floor((eta - 30) / 10));
+  }
+  function punteggio(s) {
+    if (s.sintomo === "dispnea") return 2;
+    if (s.sintomo === "dolore") return (s.d1 ? 1 : 0) + (s.d2 ? 1 : 0) + (s.d3 ? 1 : 0);
+    return null;
+  }
+  function rfcl(s) {
+    var r = { valore: null, cat: null, score: punteggio(s), nfr: s.nfr, fe: fasciaEta(s.eta), motivo: "" };
+    var manca = [];
+    if (!s.sesso) manca.push("sesso");
+    if (s.eta === null) manca.push("età");
+    if (!s.sintomo) manca.push("sintomo principale");
+    if (manca.length) { r.motivo = "manca: " + manca.join(", "); return r; }
+    if (r.fe === -1) { r.motivo = "età fuori dal modello (30–80 anni)"; return r; }
+    var g = r.score <= 1 ? "s01" : (r.score === 2 ? "s2" : "s3");
+    var c = s.nfr <= 1 ? 0 : (s.nfr <= 3 ? 1 : 2);
+    r.gruppo = g; r.col = c;
+    r.valore = RFCL[s.sesso][g][r.fe][c];
+    r.cat = categoria(r.valore);
+    return r;
+  }
+  function classeCacs(c) {
+    if (c === null || !isFinite(c) || c < 0) return null;
+    if (c === 0) return "0";
+    if (c < 10) return "1-9";
+    if (c < 100) return "10-99";
+    if (c < 400) return "100-399";
+    if (c < 1000) return "400-999";
+    return ">=1000";
+  }
+  function cacsCl(rfValore, cacs) {
+    var k = classeCacs(cacs);
+    if (k === null || rfValore === null) return { valore: null, cat: null, classe: k, confine: false };
+    var v = CACSCL[k][Math.max(0, Math.min(45, Math.round(rfValore)))];
+    var conf = false;
+    for (var i = 0; i < CONFINE.length; i++) if (v >= CONFINE[i][0] && v <= CONFINE[i][1]) conf = true;
+    return { valore: v, cat: categoria(v), classe: k, confine: conf };
+  }
+  function finale(s, r, cc) {
+    if (s.catMan !== "") return { cat: +s.catMan, da: "scelta clinica dopo l'aggiustamento" };
+    /* la riclassificazione col CACS e' raccomandata nella RF-CL bassa (IIa B, p. 3438):
+       altrove la lettura resta informativa e non cambia la categoria */
+    if (cc && cc.valore !== null && r.cat === 1) return { cat: cc.cat, da: "CACS-CL (lettura della Fig. 5)" };
+    if (r.cat === 1 && s.ecg === "neg") return { cat: 0, da: "RF-CL bassa + ECG da sforzo negativo" };
+    if (r.valore !== null) return { cat: r.cat, da: "RF-CL" };
+    return null;
+  }
+
+  /* ═══ STATO ══════════════════════════════════════════════════════════ */
+  function el(id) { return document.getElementById(id); }
+  function ck(id) { var e = el(id); return !!(e && e.checked); }
+  function num(id) {
+    var e = el(id); if (!e || e.value === "") return null;
+    var v = parseFloat(String(e.value).replace(",", ".")); return isFinite(v) ? v : null;
+  }
+  function radio(n) { var e = document.querySelector('input[name="' + n + '"]:checked'); return e ? e.value : ""; }
+  function S() {
+    var s = { sesso: radio("sesso"), eta: num("eta"), sintomo: radio("sintomo"),
+              d1: ck("d1"), d2: ck("d2"), d3: ck("d3"), ecg: radio("ecg"),
+              catMan: el("catMan").value, cacs: num("cacs"),
+              r1: ck("r1"), r2: ck("r2"), r3: ck("r3"),
+              test: el("test").value, esito: el("esito").value };
+    s.nfr = 0; var fr = document.querySelectorAll(".fr");
+    for (var i = 0; i < fr.length; i++) if (fr[i].checked) s.nfr++;
+    s.agg = []; var ag = document.querySelectorAll(".agg");
+    for (var j = 0; j < ag.length; j++) if (ag[j].checked) s.agg.push(ag[j].parentNode.querySelector("span").firstChild.textContent);
+    if (s.ecg === "pos") s.agg.push("ECG da sforzo anomalo");
+    return s;
+  }
+
+  /* ═══ DISEGNO ════════════════════════════════════════════════════════ */
+  function nf(v) { return String(v).replace(".", ","); }
+  function chip(id, cat, testo) { var e = el(id); e.className = "cat " + (cat === null ? "kx" : "k" + cat); e.innerHTML = testo; }
+  function cor(c) { var k = { "I": "c1", "IIa": "c2a", "IIb": "c2b", "III": "c3" }[c.split(" ")[0]]; return '<span class="cor ' + k + '">' + c + "</span>"; }
+  function pg(p) { return ' <span class="pg">' + p + "</span>"; }
+  function passo(ico, tx) { return '<div class="passo"><span class="ico">' + ico + '</span><span class="tx">' + tx + "</span></div>"; }
+  function nota(tipo, tx) { return '<div class="nota ' + tipo + '">' + tx + "</div>"; }
+
+  function griglia(s, r) {
+    if (!s.sesso || r.score === null) return "";
+    var g = r.score <= 1 ? "s01" : (r.score === 2 ? "s2" : "s3");
+    var h = '<table class="gr"><thead><tr><th class="eta">' + (s.sesso === "f" ? "Donna" : "Uomo") + " · punteggio " + (g === "s01" ? "0–1" : r.score) + "</th>";
+    for (var c = 0; c < 3; c++) h += "<th>FR " + NFR[c] + "</th>";
+    h += "</tr></thead><tbody>";
+    for (var e = 0; e < 5; e++) {
+      h += '<tr><th class="eta">' + ETA[e] + "</th>";
+      for (var k = 0; k < 3; k++) {
+        var v = RFCL[s.sesso][g][e][k];
+        var qui = (r.valore !== null && e === r.fe && k === r.col) ? " qui" : "";
+        h += '<td class="k' + categoria(v) + qui + '">' + v + "</td>";
+      }
+      h += "</tr>";
+    }
+    return h + "</tbody></table>";
+  }
+
+  function disegna() {
+    var s = S();
+    el("cDolore").className = "card" + (s.sintomo === "dolore" ? "" : " hide");
+    el("cDispnea").className = "card" + (s.sintomo === "dispnea" ? "" : " hide");
+    var fe = fasciaEta(s.eta);
+    el("etaNota").textContent = fe === null ? "" : (fe === -1 ? "fuori dal modello (30–80)" : "fascia " + ETA[fe]);
+
+    /* passo 1 */
+    var r = rfcl(s);
+    if (r.valore === null) {
+      el("rfVal").innerHTML = "—";
+      chip("rfCat", null, r.motivo);
+      el("rfWhy").textContent = "";
+    } else {
+      el("rfVal").innerHTML = r.valore + "<small>%</small>";
+      chip("rfCat", r.cat, CAT[r.cat] + " " + RANGE[r.cat]);
+      el("rfWhy").textContent = "punteggio dei sintomi " + r.score + " · fattori di rischio " + s.nfr + " · età " + ETA[r.fe];
+    }
+    el("rfGriglia").innerHTML = griglia(s, r);
+
+    /* passo 2 */
+    var an = "";
+    if (s.agg.length && s.catMan === "") {
+      an += nota("", "<strong>" + s.agg.length + (s.agg.length === 1 ? " reperto" : " reperti") + " da pesare</strong> (" + s.agg.join("; ") + "). La linea guida chiede di usarli per aggiustare la stima " + cor("I C") + pg("p. 3438") + ", ma non dice di quanto: se cambiano la categoria, sceglila qui sopra.");
+    }
+    if (s.ecg === "neg") {
+      an += r.cat === 1
+        ? nota("info", "Con RF-CL <strong>bassa</strong>, un ECG da sforzo negativo riclassifica nella probabilità <strong>molto bassa</strong>, con prognosi favorevole " + cor("IIb C") + pg("pp. 3438, 3441") + ". La CCTA come primo test dà però informazioni più accurate.")
+        : nota("", "L'ECG da sforzo negativo riclassifica solo dalla probabilità <strong>bassa</strong> (&gt;5–15%)" + pg("p. 3438") + ": qui non cambia la categoria.");
+    }
+    if (s.catMan !== "") an += nota("info", "Categoria scelta a mano: <strong>" + CAT[+s.catMan] + " " + RANGE[+s.catMan] + "</strong>. Da qui in giù la cascata segue questa.");
+    el("aggNote").innerHTML = an;
+
+    /* passo 3 */
+    var cc = cacsCl(r.valore, s.cacs);
+    el("cacsCl").textContent = cc.classe === null ? (s.cacs !== null && s.cacs < 0 ? "valore non valido" : "") : "classe CACS " + cc.classe.replace(">=", "≥").replace("-", "–");
+    var cn = "";
+    if (s.cacs === null || cc.classe === null) {
+      el("ccVal").innerHTML = "—"; chip("ccCat", null, "nessun CACS"); el("ccWhy").textContent = "";
+    } else if (r.valore === null) {
+      el("ccVal").innerHTML = "—"; chip("ccCat", null, "serve prima la RF-CL"); el("ccWhy").textContent = "la curva si legge sulla RF-CL del passo 1";
+    } else {
+      el("ccVal").innerHTML = "≈" + nf(Math.round(cc.valore)) + "<small>%</small>";
+      chip("ccCat", cc.cat, CAT[cc.cat] + " " + RANGE[cc.cat]);
+      el("ccWhy").textContent = "RF-CL " + r.valore + "% con CACS " + cc.classe.replace(">=", "≥").replace("-", "–") + " → lettura " + nf(cc.valore) + "%";
+      if (cc.confine) cn += nota("stop", "<strong>Al confine fra due categorie.</strong> La lettura della curva non basta a decidere: scegli la categoria al passo 2, con il resto del quadro.");
+      if (r.cat !== 1) cn += nota("", "La linea guida raccomanda la riclassificazione col CACS nella RF-CL <strong>bassa</strong> (&gt;5–15%) " + cor("IIa B") + pg("p. 3438") + ": qui la RF-CL è " + CAT[r.cat] + ", e la lettura è solo informativa: non cambia la categoria finale. Se il calcio cambia il quadro, sceglila al passo 2.");
+      if (cc.classe === "0" && s.eta !== null && s.eta < 40) cn += nota("stop", "<strong>CACS 0 sotto i 40 anni.</strong> Il valore predittivo negativo è molto alto (&gt;95%), ma fra i pazienti con CAD ostruttiva il CACS è 0 nel 58% di quelli sotto i 40 anni, contro il 9% di quelli fra 60 e 69." + pg("p. 3438"));
+      if (s.agg.length) cn += nota("", "Hai segnato reperti al passo 2: la curva non li conosce, e vanno pesati anche su questa lettura.");
+    }
+    el("ccNote").innerHTML = cn;
+
+    /* passo 4 */
+    var f = finale(s, r, cc);
+    var tp = "";
+    if (f === null) {
+      chip("finCat", null, "categoria finale —"); el("finDa").textContent = "compila il passo 1 o scegli la categoria al passo 2";
+    } else {
+      chip("finCat", f.cat, "finale: " + CAT[f.cat] + " " + RANGE[f.cat]); el("finDa").textContent = "da: " + f.da;
+      if (f.cat === 0) {
+        tp += passo("→", "<strong>Differire altri test diagnostici</strong> " + cor("IIa B") + pg("p. 3438"));
+        tp += passo("↺", "Se i sintomi <strong>persistono</strong> ed escluse le cause non cardiache: il modello non stima ANOCA/INOCA, che vanno considerate" + pg("pp. 3437–3438"));
+      } else if (f.cat === 1) {
+        tp += passo("→", "<strong>Aggiustare la probabilità</strong> col CACS " + cor("IIa B") + " o con ECG da sforzo e ricerca di aterosclerosi extracoronarica " + cor("IIb C") + pg("p. 3438"));
+        tp += passo("→", "<strong>oppure CCTA</strong>, raccomandata per diagnosi e rischio fra &gt;5 e 50% " + cor("I A") + pg("p. 3442"));
+        tp += passo("·", "Il beneficio del test è incerto: si esegue se i sintomi sono limitanti e vanno chiariti" + pg("p. 3438"));
+        tp += passo("✕", "ECG da sforzo per escludere la CAD se CCTA o imaging funzionale sono disponibili " + cor("III C") + pg("p. 3441"));
+      } else if (f.cat === 2) {
+        tp += passo("→", "<strong>CCTA</strong> " + cor("I A") + pg("p. 3442") + " <strong>oppure imaging funzionale</strong>: eco-stress " + cor("I B") + pg("p. 3443") + ", SPECT o, preferibilmente, PET " + cor("I B") + pg("p. 3444") + ", CMR da stress " + cor("I B") + pg("p. 3445"));
+        tp += passo("✕", "ECG da sforzo per escludere la CAD se CCTA o imaging funzionale sono disponibili " + cor("III C") + pg("p. 3441"));
+      } else if (f.cat === 3) {
+        tp += passo("→", "<strong>Imaging funzionale</strong>: eco-stress, SPECT o, preferibilmente, PET, CMR da stress " + cor("I B") + pg("pp. 3443–3445"));
+      } else {
+        tp += passo("→", "<strong>Coronarografia (ICA)</strong>, con la valutazione funzionale invasiva (FFR/iFR) disponibile " + cor("I C") + pg("p. 3446"));
+      }
+    }
+    if (s.r1) tp += passo("⚡", "<strong>Sintomi molto suggestivi a basso carico</strong>: ICA come primo test, per la rivascolarizzazione, dopo la valutazione del cardiologo " + cor("I C") + pg("p. 3446"));
+    if (s.r2) tp += passo("⚡", "<strong>Sintomi severi refrattari</strong> alla terapia: ICA per la diagnosi " + cor("I C") + pg("p. 3446"));
+    if (s.r3) tp += passo("⚡", "<strong>Reperti di prognosi sfavorevole</strong>: ICA con FFR/iFR preferibile" + pg("Fig. 7, p. 3450"));
+    el("testPassi").innerHTML = tp;
+    el("prefer").className = "card due" + (f !== null && f.cat >= 1 && f.cat <= 3 ? "" : " hide");
+
+    /* passo 5 */
+    var ESITI = {
+      ccta: [["", "—"], ["alto", "CAD ad alto rischio"], ["incerta", "stenosi di significato incerto, o esame non diagnostico"], ["noostr", "nessuna CAD ostruttiva"]],
+      funz: [["", "—"], ["alto", "criteri di alto rischio"], ["ischemia", "ischemia senza criteri di alto rischio"], ["nondiag", "non diagnostico"], ["neg", "negativo"]],
+      ica: [["", "—"], ["ostr", "CAD epicardica ostruttiva"], ["noostr", "nessuna CAD ostruttiva"]]
+    };
+    var sel = el("esito");
+    if (sel.getAttribute("data-per") !== s.test) {
+      sel.innerHTML = "";
+      var lista = ESITI[s.test] || [];
+      for (var i = 0; i < lista.length; i++) { var o = document.createElement("option"); o.value = lista[i][0]; o.textContent = lista[i][1]; sel.appendChild(o); }
+      sel.setAttribute("data-per", s.test); s.esito = "";
+    }
+    el("rigaEsito").className = "row" + (s.test ? "" : " hide");
+    var dp = "";
+    if (s.test === "ccta") {
+      if (s.esito === "alto") {
+        dp += passo("→", "<strong>ICA</strong>, completata dalla pressione intracoronarica (FFR/iFR) quando serve, per stratificare e migliorare sintomi ed esiti con la rivascolarizzazione " + cor("I A") + pg("p. 3454"));
+        dp += passo("·", "Alto rischio alla CCTA: tronco comune ≥50% · trivasale ≥70% · bivasale ≥70% che include la IVA prossimale · monovasale della IVA prossimale ≥70% con FFR-CT ≤0,8" + pg("p. 3454"));
+      } else if (s.esito === "incerta") {
+        dp += passo("→", "<strong>Imaging funzionale</strong> se la CCTA mostra CAD di significato funzionale incerto o non è diagnostica " + cor("I B") + pg("p. 3453"));
+        dp += passo("·", "Stenosi intermedia in un segmento prossimale o medio: si può considerare la FFR-CT " + cor("IIb B") + pg("p. 3453"));
+      } else if (s.esito === "noostr") {
+        dp += passo("↺", "Se i sintomi persistono, considerare <strong>ANOCA/INOCA</strong>" + pg("p. 3437") + "; ICA con test funzionali invasivi se la diagnosi resta incerta " + cor("I B") + pg("p. 3453"));
+      }
+    } else if (s.test === "funz") {
+      if (s.esito === "alto") {
+        dp += passo("→", "<strong>ICA</strong>, completata da FFR/iFR quando serve " + cor("I A") + pg("p. 3454"));
+        dp += passo("·", "Criteri: SPECT o PET con ischemia ≥10% del miocardio VS · eco-stress con ≥3 segmenti su 16 ipo- o acinetici da stress · CMR con ≥2 segmenti su 16 con difetto di perfusione o ≥3 disfunzionanti con dobutamina · ECG da sforzo con Duke Treadmill Score &lt; −10" + pg("p. 3454"));
+        dp += passo("!", "Nel testo, dopo ISCHEMIA, la maggior parte dei pazienti con ischemia moderata-severa senza malattia del tronco né FEVS ridotta può cominciare con la terapia ottimizzata; l'ICA si propone se l'ischemia copre un territorio esteso" + pg("p. 3453"));
+      } else if (s.esito === "ischemia") {
+        dp += passo("→", "<strong>Stile di vita, fattori di rischio, terapia che modifica la malattia e antianginosa</strong>" + pg("Fig. 7, p. 3450"));
+        dp += passo("·", "Ottimizzare con due o più antianginosi si fa in sicurezza in circa 6 settimane, da aspettare prima di inviare a ICA per i soli sintomi" + pg("p. 3453"));
+      } else if (s.esito === "nondiag") {
+        dp += passo("→", "<strong>CCTA</strong> se la probabilità è bassa o moderata (&gt;5–50%) " + cor("I B") + pg("p. 3453"));
+      } else if (s.esito === "neg") {
+        dp += passo("↺", "Se i sintomi persistono, considerare <strong>ANOCA/INOCA</strong>" + pg("p. 3437"));
+      }
+    } else if (s.test === "ica") {
+      if (s.esito === "ostr") {
+        dp += passo("→", "<strong>Considerare la rivascolarizzazione</strong>" + pg("Fig. 7, p. 3450"));
+        dp += passo("·", "Stenosi intermedie fuori dal tronco: pressione intracoronarica prima di rivascolarizzare " + cor("I A") + pg("p. 3446"));
+      } else if (s.esito === "noostr") {
+        dp += passo("→", "<strong>Considerare i test funzionali invasivi (ICFT)</strong>: ANOCA/INOCA?" + pg("Fig. 7, p. 3450"));
+      }
+    }
+    if (s.test && s.esito) dp += passo("⚡", "Sintomi refrattari nonostante la terapia ottimizzata: <strong>indagine invasiva</strong>" + pg("Fig. 7, p. 3450"));
+    el("dopoPassi").innerHTML = dp;
+
+    /* limiti */
+    var lim = [];
+    if (fe === -1) lim.push("<strong>Età fuori da 30–80 anni:</strong> la tabella non dà un valore. Per seguire la cascata scegli la categoria al passo 2.");
+    lim.push("Il modello stima la CAD <strong>ostruttiva</strong>, non ANOCA/INOCA: se i sintomi persistono dopo un test negativo o un rinvio, vanno considerate." + pg("p. 3437"));
+    lim.push("Non pesa ipercolesterolemia familiare, disfunzione renale severa, malattie reumatiche o infiammatorie, arteriopatia periferica: vanno aggiunte a giudizio." + pg("p. 3438"));
+    lim.push("La tabella arriva al <strong>45%</strong>: alta e molto alta si raggiungono solo con l'aggiustamento clinico o col calcio.");
+    if (s.cacs !== null) lim.push("Il CACS-CL qui è <strong>letto sulle curve</strong> della Fig. 5, non calcolato col modello originale: il numero è indicativo, la categoria è quella che conta.");
+    el("limiti").innerHTML = "<li>" + lim.join("</li><li>") + "</li>";
+
+    /* barra */
+    if (r.valore === null) chip("barRf", null, "—"); else chip("barRf", r.cat, r.valore + "% · " + CAT[r.cat]);
+    if (f === null) chip("barFin", null, "—"); else chip("barFin", f.cat, CAT[f.cat]);
+  }
+
+  document.addEventListener("input", disegna);
+  document.addEventListener("change", disegna);
+  el("azzera").addEventListener("click", function () {
+    var ins = document.querySelectorAll("input");
+    for (var i = 0; i < ins.length; i++) {
+      if (ins[i].type === "checkbox" || ins[i].type === "radio") ins[i].checked = ins[i].name === "ecg" && ins[i].value === "";
+      else ins[i].value = "";
+    }
+    el("catMan").value = ""; el("test").value = "";
+    disegna();
+    window.scrollTo(0, 0);
+  });
+
+  window.RFCL_MOTORE = { rfcl: rfcl, cacsCl: cacsCl, categoria: categoria, finale: finale, classeCacs: classeCacs, fasciaEta: fasciaEta };
+  disegna();
+})();
+</script>
+<script data-iphone="web">
+// Solo da un indirizzo https, cioe' dalla pagina pubblicata: aperto come file
+// il tool non cerca ne' manifest ne' service worker, che accanto al file non
+// ci sono. Un errore qui non deve fermare niente: e' un di piu'.
+(function(){
+if(location.protocol!=="https:") return;
+try{
+  var t=document.getElementsByTagName("head")[0];
+  var m=document.createElement("link"); m.rel="manifest"; m.href="manifest.webmanifest";
+  var i=document.createElement("link"); i.rel="apple-touch-icon"; i.href="icona-180.png";
+  t.appendChild(m); t.appendChild(i);
+  if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js")["catch"](function(){});
+}catch(e){}
+})();
+</script>
+<script data-iphone="fine">document.documentElement.className+=" motore-ok";</script>
+</body>
+</html>
