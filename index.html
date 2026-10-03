@@ -408,7 +408,7 @@ html.js.motore-ko #nomotore{display:block}
 <div class="card"><ul class="limiti" id="limiti"></ul></div>
 
 <div class="foot">
-  <strong>Fonte.</strong> Vrints C, Andreotti F, Koskinas KC, Rossello X, et al. <em>2024 ESC Guidelines for the management of chronic coronary syndromes.</em> Eur Heart J 2024;45:3415–3537. Tabella RF-CL trascritta dalla Fig. 4 (p. 3439) e verificata cella per cella; curve CACS-CL lette sul tracciato vettoriale della Fig. 5 (p. 3448), con la scala dell'asse della figura; cascata dalle Fig. 6–7 (pp. 3449–3450) e dalle tabelle di raccomandazioni 3, 5, 8–14. Testo riformulato, nessun passo della fonte riprodotto.<br>
+  <strong>Fonte.</strong> Vrints C, Andreotti F, Koskinas KC, Rossello X, et al. <em>2024 ESC Guidelines for the management of chronic coronary syndromes.</em> Eur Heart J 2024;45:3415–3537. Tabella RF-CL trascritta dalla Fig. 4 (p. 3439) e verificata cella per cella; curve CACS-CL lette sul tracciato vettoriale della Fig. 5 (p. 3448), con la scala dell'asse della figura; cascata dalle Fig. 6–7 (pp. 3449–3450) e dalle tabelle di raccomandazioni 3, 5, 8–14. Quota di CACS 0 fra le CAD ostruttive per decade d'età (la linea guida ne dà solo gli estremi): Mortensen MB, et al. <em>Association of age with the diagnostic value of coronary artery calcium score for ruling out coronary stenosis in symptomatic patients.</em> JAMA Cardiol 2022;7:36–44, PMID 34705022. Testo riformulato, nessun passo della fonte riprodotto.<br>
   <strong>Strumento di studio e di consultazione.</strong> Non è un dispositivo medico validato e non sostituisce il giudizio clinico né la lettura della linea guida.
 </div>
 
@@ -505,6 +505,19 @@ html.js.motore-ko #nomotore{display:block}
     for (var i = 0; i < CONFINE.length; i++) if (v >= CONFINE[i][0] && v <= CONFINE[i][1]) conf = true;
     return { valore: v, cat: categoria(v), classe: k, confine: conf };
   }
+  /* CACS 0 fra i pazienti con CAD ostruttiva, per decade d'eta' — Mortensen MB
+     et al., JAMA Cardiol 2022;7:36-44, PMID 34705022 (Western Denmark Heart
+     Registry, 23 759 sintomatici con CCTA). La linea guida ne riporta i due
+     estremi, 58% sotto i 40 e 9% fra 60 e 69 (p. 3438); le decadi intermedie
+     vengono dal paper. Sotto i 60 anni l'avviso, perche' li' lo studio trova che
+     la CAD ostruttiva con CACS 0 porta piu' infarti e morti (HR 1,80). */
+  function cacs0Eta(eta) {
+    if (eta === null || !isFinite(eta) || eta < 30) return null;
+    if (eta < 40) return { q: 58, fascia: "sotto i 40 anni", forte: true };
+    if (eta < 50) return { q: 34, fascia: "fra 40 e 49 anni", forte: true };
+    if (eta < 60) return { q: 18, fascia: "fra 50 e 59 anni", forte: false };
+    return null;
+  }
   function finale(s, r, cc) {
     if (s.catMan !== "") return { cat: +s.catMan, da: "scelta clinica dopo l'aggiustamento" };
     /* la riclassificazione col CACS e' raccomandata nella RF-CL bassa (IIa B, p. 3438):
@@ -544,6 +557,7 @@ html.js.motore-ko #nomotore{display:block}
   function pg(p) { return ' <span class="pg">' + p + "</span>"; }
   function passo(ico, tx) { return '<div class="passo"><span class="ico">' + ico + '</span><span class="tx">' + tx + "</span></div>"; }
   function nota(tipo, tx) { return '<div class="nota ' + tipo + '">' + tx + "</div>"; }
+  var MORT = pg("Mortensen 2022 · PMID 34705022");
 
   function griglia(s, r) {
     if (!s.sesso || r.score === null) return "";
@@ -598,6 +612,7 @@ html.js.motore-ko #nomotore{display:block}
 
     /* passo 3 */
     var cc = cacsCl(r.valore, s.cacs);
+    var w0 = (cc.classe === "0" && r.valore !== null) ? cacs0Eta(s.eta) : null;
     el("cacsCl").textContent = cc.classe === null ? (s.cacs !== null && s.cacs < 0 ? "valore non valido" : "") : "classe CACS " + cc.classe.replace(">=", "≥").replace("-", "–");
     var cn = "";
     if (s.cacs === null || cc.classe === null) {
@@ -610,18 +625,20 @@ html.js.motore-ko #nomotore{display:block}
       el("ccWhy").textContent = "RF-CL " + r.valore + "% con CACS " + cc.classe.replace(">=", "≥").replace("-", "–") + " → lettura " + nf(cc.valore) + "%";
       if (cc.confine) cn += nota("stop", "<strong>Al confine fra due categorie.</strong> La lettura della curva non basta a decidere: scegli la categoria al passo 2, con il resto del quadro.");
       if (r.cat !== 1) cn += nota("", "La linea guida raccomanda la riclassificazione col CACS nella RF-CL <strong>bassa</strong> (&gt;5–15%) " + cor("IIa B") + pg("p. 3438") + ": qui la RF-CL è " + CAT[r.cat] + ", e la lettura è solo informativa: non cambia la categoria finale. Se il calcio cambia il quadro, sceglila al passo 2.");
-      if (cc.classe === "0" && s.eta !== null && s.eta < 40) cn += nota("stop", "<strong>CACS 0 sotto i 40 anni.</strong> Il valore predittivo negativo è molto alto (&gt;95%), ma fra i pazienti con CAD ostruttiva il CACS è 0 nel 58% di quelli sotto i 40 anni, contro il 9% di quelli fra 60 e 69." + pg("p. 3438"));
+      if (w0) cn += nota(w0.forte ? "stop" : "", "<strong>CACS 0 " + w0.fascia + ": esclude meno di quanto sembra.</strong> Fra i pazienti di quest'età con CAD ostruttiva, il CACS è 0 nel <strong>" + w0.q + "%</strong>; la linea guida dà gli estremi, 58% sotto i 40 anni e 9% fra 60 e 69" + pg("p. 3438") + ". Il valore predittivo negativo &gt;95% è un dato di popolazione, non del giovane sintomatico: a parità di fattori di rischio, un CACS 0 abbassa la probabilità di CAD ostruttiva di circa un terzo sotto i 40 anni, e di oltre quattro quinti dopo i 70." + MORT);
       if (s.agg.length) cn += nota("", "Hai segnato reperti al passo 2: la curva non li conosce, e vanno pesati anche su questa lettura.");
     }
     el("ccNote").innerHTML = cn;
 
     /* passo 4 */
     var f = finale(s, r, cc);
-    var tp = "";
+    var tp = "", avv = "";
     if (f === null) {
       chip("finCat", null, "categoria finale —"); el("finDa").textContent = "compila il passo 1 o scegli la categoria al passo 2";
     } else {
-      chip("finCat", f.cat, "finale: " + CAT[f.cat] + " " + RANGE[f.cat]); el("finDa").textContent = "da: " + f.da;
+      var w0fin = (w0 && f.da.indexOf("CACS-CL") === 0) ? w0 : null;
+      chip("finCat", f.cat, "finale: " + CAT[f.cat] + " " + RANGE[f.cat] + (w0fin ? " ⚠" : "")); el("finDa").textContent = "da: " + f.da + (w0fin ? " · con un CACS 0 a " + s.eta + " anni" : "");
+      if (w0fin) avv = nota(w0fin.forte ? "stop" : "", "<strong>⚠ Questa categoria viene da un CACS 0 a " + s.eta + " anni.</strong> " + (w0fin.fascia.charAt(0).toUpperCase() + w0fin.fascia.slice(1)) + ", fra i pazienti con CAD ostruttiva il CACS è 0 nel " + w0fin.q + "% (passo 3). Se i sintomi sono tipici o limitanti, la stima va aggiustata col giudizio clinico " + cor("I C") + pg("p. 3438") + ": scegli la categoria al passo 2." + MORT);
       if (f.cat === 0) {
         tp += passo("→", "<strong>Differire altri test diagnostici</strong> " + cor("IIa B") + pg("p. 3438"));
         tp += passo("↺", "Se i sintomi <strong>persistono</strong> ed escluse le cause non cardiache: il modello non stima ANOCA/INOCA, che vanno considerate" + pg("pp. 3437–3438"));
@@ -639,6 +656,7 @@ html.js.motore-ko #nomotore{display:block}
         tp += passo("→", "<strong>Coronarografia (ICA)</strong>, con la valutazione funzionale invasiva (FFR/iFR) disponibile " + cor("I C") + pg("p. 3446"));
       }
     }
+    tp += avv;
     if (s.r1) tp += passo("⚡", "<strong>Sintomi molto suggestivi a basso carico</strong>: ICA come primo test, per la rivascolarizzazione, dopo la valutazione del cardiologo " + cor("I C") + pg("p. 3446"));
     if (s.r2) tp += passo("⚡", "<strong>Sintomi severi refrattari</strong> alla terapia: ICA per la diagnosi " + cor("I C") + pg("p. 3446"));
     if (s.r3) tp += passo("⚡", "<strong>Reperti di prognosi sfavorevole</strong>: ICA con FFR/iFR preferibile" + pg("Fig. 7, p. 3450"));
@@ -705,7 +723,7 @@ html.js.motore-ko #nomotore{display:block}
 
     /* barra */
     if (r.valore === null) chip("barRf", null, "—"); else chip("barRf", r.cat, r.valore + "% · " + CAT[r.cat]);
-    if (f === null) chip("barFin", null, "—"); else chip("barFin", f.cat, CAT[f.cat]);
+    if (f === null) chip("barFin", null, "—"); else chip("barFin", f.cat, CAT[f.cat] + (w0fin ? " ⚠" : ""));
   }
 
   document.addEventListener("input", disegna);
